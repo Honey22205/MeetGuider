@@ -1,0 +1,7 @@
+{
+  "name": "ScribeAI",
+  "description": "A client-side AI-powered audio scribing and meeting transcription app. Captures audio from microphone or browser tabs, transcribes in real-time using Gemini Live API, and generates intelligent summaries.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
