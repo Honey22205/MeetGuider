@@ -2,10 +2,29 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 // Initialize the Gemini SDK
 // Note: In a real production app, this key should be proxied or users should enter their own.
-// For this environment, we assume process.env.API_KEY is available.
+// For this environment, we assume process.env.API_KEY is available or use the provided fallback.
+
+const FALLBACK_KEY = 'AIzaSyBZA1rOSR3KFppFkfZ7zGEVAn5OYKt1LoA';
 
 export const createGeminiClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  let key = '';
+  try {
+    // Safely access process.env to avoid "process is not defined" in browser runtimes without polyfills
+    key = process.env.API_KEY || '';
+  } catch (e) {
+    // Ignore error if process is not defined
+  }
+
+  // Use fallback key if environment variable is not set
+  if (!key) {
+    key = FALLBACK_KEY;
+  }
+
+  if (!key) {
+    throw new Error("API Key is missing. Please set the API_KEY environment variable in your deployment settings.");
+  }
+
+  return new GoogleGenAI({ apiKey: key });
 }
 
 export const MODELS = {

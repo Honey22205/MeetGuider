@@ -5,7 +5,7 @@ import { createGeminiClient, createAudioBlob, generateMeetingSummary, MODELS } f
 import { saveSession } from '../services/storage';
 import { Session } from '../types';
 import AudioVisualizer from './AudioVisualizer';
-import { Mic, Square, Pause, Play, Monitor, AlertCircle, Loader2 } from 'lucide-react';
+import { Mic, Square, Pause, Play, Monitor, AlertCircle, Loader2, Key } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 const ActiveSession: React.FC = () => {
@@ -17,6 +17,7 @@ const ActiveSession: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [duration, setDuration] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [needsKeySelection, setNeedsKeySelection] = useState(false);
 
   // Refs for logic
   const sessionRef = useRef<any>(null); // Gemini Live Session
@@ -28,6 +29,38 @@ const ActiveSession: React.FC = () => {
   const transcriptRef = useRef<string>(''); // Mutable ref for instant updates
   const nextStartTimeRef = useRef<number>(0); // For audio playback if we wanted it, mostly unused here
 
+  // Check for API Key selection availability (for specific environments)
+  useEffect(() => {
+    const checkKey = async () => {
+      if ((window as any).aistudio) {
+        try {
+          const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+          if (!hasKey) {
+            setNeedsKeySelection(true);
+          }
+        } catch (e) {
+          console.error("Error checking for selected API key", e);
+        }
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if ((window as any).aistudio) {
+      try {
+        await (window as any).aistudio.openSelectKey();
+        setNeedsKeySelection(false);
+        // Reset error state if it was related to key
+        if (errorMsg?.includes("API Key")) {
+            setErrorMsg(null);
+        }
+      } catch (e) {
+        console.error("Error opening key selector", e);
+      }
+    }
+  };
+
   // Start Session Logic
   const startSession = async () => {
     try {
@@ -36,6 +69,11 @@ const ActiveSession: React.FC = () => {
       setTranscript('');
       transcriptRef.current = '';
       setDuration(0);
+
+      // Check if we need to select a key first (and haven't yet)
+      if (needsKeySelection) {
+        throw new Error("Please select an API Key to continue.");
+      }
 
       // 1. Get Media Stream
       let stream: MediaStream;
@@ -120,7 +158,8 @@ const ActiveSession: React.FC = () => {
           },
           onerror: (err) => {
             console.error('Gemini Live Error', err);
-            setErrorMsg("Connection to AI service failed. Please check your API key.");
+            // The Live API might throw error events that are generic objects
+            setErrorMsg("Connection to AI service failed. Please check your network and API key.");
             stopRecording(true);
           }
         }
@@ -180,6 +219,8 @@ const ActiveSession: React.FC = () => {
       // Improve error message for common tab sharing mistake
       if (err.message && err.message.includes("No audio track found")) {
          setErrorMsg(err.message);
+      } else if (err.message && err.message.includes("API Key is missing")) {
+         setErrorMsg("API Key is missing. Please set the API_KEY environment variable in your deployment settings.");
       } else {
          setErrorMsg(err.message || "Failed to access microphone or screen share.");
       }
@@ -298,9 +339,24 @@ const ActiveSession: React.FC = () => {
         
         {status === 'error' && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-200 rounded-lg flex items-center gap-3">
-                <AlertCircle size={20} />
+                <AlertCircle size={20} className="flex-shrink-0" />
                 <p>{errorMsg}</p>
             </div>
+        )}
+
+        {needsKeySelection && (
+             <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 text-blue-200 rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                    <Key size={20} />
+                    <p>API Key Required</p>
+                </div>
+                <button 
+                    onClick={handleSelectKey}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                    Select API Key
+                </button>
+             </div>
         )}
 
         <div className="grid grid-cols-2 gap-4 mb-8">
